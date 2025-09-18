@@ -2,19 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Spin to GIF</title>
+<title>Spin Logo GIF Recorder</title>
 <style>
   body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    background: transparent;
-    margin: 0;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+    margin:0;
+    background:transparent;
   }
-  canvas {
-    background: transparent;
-  }
+  canvas { background:transparent; }
 </style>
 </head>
 <body>
@@ -27,31 +25,20 @@ const ctx = canvas.getContext("2d");
 const size = 512;
 
 const logo = new Image();
-logo.src = "Img.PNG"; // idek
-const emojiCat = "🐈";
-const emojiHeart = "🩷";
+logo.src = "Img.PNG"; // E
+const emojis = ["🐈", "🩷"];
 
-// easing in/out
 function easeInOut(t) {
-  return t < 0.5
-    ? 2*t*t
-    : -1 + (4 - 2*t)*t;
+  return t < 0.5 ? 2*t*t : -1 + (4-2*t)*t;
 }
 
-let gif = new GIF({
-  workers: 2,
-  quality: 1,
-  transparent: 'rgba(0,0,0,0)',
-  workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js"
-});
-
-function drawRotated(content, angle, isEmoji=false) {
+function drawContent(content, angle, isEmoji=false) {
   ctx.clearRect(0, 0, size, size);
   ctx.save();
   ctx.translate(size/2, size/2);
   ctx.rotate(angle * Math.PI/180);
   if (isEmoji) {
-    ctx.font = "200px sans-serif";
+    ctx.font = "300px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(content, 0, 0);
@@ -63,45 +50,51 @@ function drawRotated(content, angle, isEmoji=false) {
 
 logo.onload = () => {
   const fps = 30;
-  const spinDuration = 2;   // seconds per spin
-  const pauseDuration = 1;  // seconds pause after spin
-  const framesPerSpin = spinDuration * fps;
-  const framesPause = pauseDuration * fps;
+  const spinSec = 2;
+  const pauseSec = 1;
+  const spinFrames = fps * spinSec;
+  const pauseFrames = fps * pauseSec;
 
   const sequence = [
-    {start: logo, end: emojiCat},
-    {start: emojiCat, end: emojiHeart},
-    {start: emojiHeart, end: logo},
+    {start: logo, end: emojis[0]},
+    {start: emojis[0], end: emojis[1]},
+    {start: emojis[1], end: logo},
   ];
 
-  sequence.forEach(pair => {
-    for (let f = 0; f < framesPerSpin; f++) {
-      const t = f / framesPerSpin;
+  const gif = new GIF({
+    workers: 2,
+    quality: 1,
+    transparent: 'rgba(0,0,0,0)',
+    workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js"
+  });
+
+  sequence.forEach(step => {
+    for (let f=0; f<spinFrames; f++) {
+      const t = f/spinFrames;
       const eased = easeInOut(t);
       const angle = eased * 360;
 
-      // halfway swap
-      const halfway = f >= framesPerSpin/2;
-      const content = halfway ? pair.end : pair.start;
-      const isEmoji = (typeof content === "string");
+      const halfway = f >= spinFrames/2;
+      let content = halfway ? step.end : step.start;
+      let isEmoji = (typeof content === "string");
 
-      drawRotated(content, angle, isEmoji);
-      gif.addFrame(ctx, {copy: true, delay: 1000/fps});
+      drawContent(content, angle, isEmoji);
+      gif.addFrame(ctx, {copy:true, delay:1000/fps});
     }
 
-    // pause
-    for (let p = 0; p < framesPause; p++) {
-      const content = pair.end;
-      const isEmoji = (typeof content === "string");
-      drawRotated(content, 0, isEmoji);
-      gif.addFrame(ctx, {copy: true, delay: 1000/fps});
+    // pause on end frame
+    for (let p=0; p<pauseFrames; p++) {
+      let content = step.end;
+      let isEmoji = (typeof content === "string");
+      drawContent(content, 0, isEmoji);
+      gif.addFrame(ctx, {copy:true, delay:1000/fps});
     }
   });
 
   gif.on('finished', function(blob) {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "spin.gif";
+    a.download = "spin_loop.gif";
     a.click();
   });
 
