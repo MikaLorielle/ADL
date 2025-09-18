@@ -47,188 +47,208 @@
   <!-- gif.js (optimized) -->
   <script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.js"></script>
 
-  <script>
-  (function(){
-    const startBtn = document.getElementById('startBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const progressEl = document.getElementById('gif-progress');
-    const outImg = document.getElementById('output-gif');
-    const logoPreview = document.getElementById('logo-sequence');
+<script>
+(async function(){
+  const startBtn = document.getElementById('startBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const progressEl = document.getElementById('gif-progress');
+  const outImg = document.getElementById('output-gif');
+  const logoPreview = document.getElementById('logo-sequence');
 
-    // CONFIG
-    const CANVAS_SIZE = 512;       // 512x512 as requested
-    const FPS = 30;                // 30 fps
-    const SPIN_SEC = 2.0;          // 2s per 360° spin (you can change)
-    const PAUSE_SEC = 1.0;         // 1s pause between spins
-    const FRAMES_PER_SPIN = Math.round(FPS * SPIN_SEC);
-    const FRAMES_PAUSE = Math.round(FPS * PAUSE_SEC);
-    const FRAME_DELAY_MS = Math.round(1000 / FPS);
-    const logoSrc = 'Img.PNG';    // make sure ORCC.png is same-folder / same-origin
-    const emojis = ['🐈', '🩷'];
+  // CONFIG
+  const CANVAS_SIZE = 512;
+  const FPS = 30;
+  const SPIN_SEC = 2.0;
+  const PAUSE_SEC = 1.0;
+  const FRAMES_PER_SPIN = Math.round(FPS * SPIN_SEC);
+  const FRAMES_PAUSE = Math.round(FPS * PAUSE_SEC);
+  const FRAME_DELAY_MS = Math.round(1000 / FPS);
+  const logoSrc = 'Img.PNG';   // ensure this file is in the same folder on GitHub Pages
+  const emojis = ['🐈', '🩷'];
 
-    // offscreen canvas context
-    const off = document.getElementById('offscreen');
-    off.width = CANVAS_SIZE;
-    off.height = CANVAS_SIZE;
-    const ctx = off.getContext('2d');
+  // offscreen canvas context
+  const off = document.getElementById('offscreen');
+  off.width = CANVAS_SIZE;
+  off.height = CANVAS_SIZE;
+  const ctx = off.getContext('2d');
 
-    // preload logo (same-origin recommended to avoid tainted canvas)
-    const logoImg = new Image();
-    logoImg.crossOrigin = 'anonymous'; // requires server CORS header if hosted remotely
-    logoImg.src = logoSrc;
+  // preload logo (DO NOT set crossOrigin for same-origin files on GitHub Pages)
+  const logoImg = new Image();
+  logoImg.src = logoSrc;
 
-    // prepare emoji font
-    const emojiFontPx = Math.floor(CANVAS_SIZE * 0.72) + 'px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+  // prepare emoji font
+  const emojiFontPx = Math.floor(CANVAS_SIZE * 0.72) + 'px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
 
-    function easeInOut(t) {
-      return t < 0.5 ? 2 * t * t : -1 + (4 - 2*t)*t;
-    }
+  function easeInOut(t) {
+    return t < 0.5 ? 2 * t * t : -1 + (4 - 2*t)*t;
+  }
+  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
-    function drawContent(content, angleDeg) {
-      ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
-      ctx.save();
-      ctx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
-      ctx.rotate(angleDeg * Math.PI/180);
+  function drawContent(content, angleDeg) {
+    ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+    ctx.save();
+    ctx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
+    ctx.rotate(angleDeg * Math.PI/180);
 
-      if (typeof content === 'string') {
-        ctx.font = emojiFontPx;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'black'; // black emoji rendering (or change to another color)
-        ctx.fillText(content, 0, 0);
-      } else {
-        // draw image centered and scaled to fit
+    if (typeof content === 'string') {
+      ctx.font = emojiFontPx;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'black';
+      ctx.fillText(content, 0, 0);
+    } else {
+      try {
         ctx.drawImage(content, -CANVAS_SIZE/2, -CANVAS_SIZE/2, CANVAS_SIZE, CANVAS_SIZE);
+      } catch (e) {
+        // drawing might fail if image not loaded — that's okay, fallback will render emoji frames still
+        console.warn('drawImage issue (maybe not loaded yet):', e);
       }
-
-      ctx.restore();
     }
 
-    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+    ctx.restore();
+  }
 
-    startBtn.addEventListener('click', async () => {
-      startBtn.disabled = true;
-      downloadBtn.style.display = 'none';
-      progressEl.style.display = 'inline-block';
-      progressEl.textContent = 'Preparing…';
-      outImg.src = ''; // clear previous
+  // helper to fetch worker script and return blob url
+  async function makeWorkerBlobUrl(workerScriptUrl) {
+    try {
+      const res = await fetch(workerScriptUrl);
+      if (!res.ok) throw new Error('Worker fetch failed: ' + res.status);
+      const text = await res.text();
+      const blob = new Blob([text], { type: 'application/javascript' });
+      return URL.createObjectURL(blob);
+    } catch (err) {
+      console.error('Failed to fetch worker script:', err);
+      return null;
+    }
+  }
 
-      // make sure logo loaded (or wait a bit)
-      if (!logoImg.complete) {
-        try {
-          await new Promise((res, rej) => {
-            logoImg.onload = res;
-            logoImg.onerror = res; // still proceed even if image fails (fallback later)
-            // after 3s, move on anyway
-            setTimeout(res, 3000);
-          });
-        } catch(e){}
-      }
+  startBtn.addEventListener('click', async () => {
+    startBtn.disabled = true;
+    downloadBtn.style.display = 'none';
+    progressEl.style.display = 'inline-block';
+    progressEl.textContent = 'Preparing…';
+    outImg.src = ''; // clear previous
 
-      // build sequence steps: each step is {start, end}
-      const sequence = [
-        { start: logoImg, end: emojis[0] },   // logo -> cat
-        { start: emojis[0], end: emojis[1] }, // cat -> heart
-        { start: emojis[1], end: logoImg }    // heart -> logo
-      ];
-
-      // create GIF encoder
-      const gif = new GIF({
-        workers: 2,
-        quality: 1,
-        width: CANVAS_SIZE,
-        height: CANVAS_SIZE,
-        transparent: 'rgba(0,0,0,0)',
-        workerScript: 'https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js'
+    // wait briefly for logo to load (proceed even if it doesn't)
+    if (!logoImg.complete) {
+      await new Promise(res => {
+        logoImg.onload = () => res();
+        logoImg.onerror = () => { console.warn('Logo load failed — continuing'); res(); };
+        setTimeout(res, 2500);
       });
+    }
 
-      // frame accounting for progress
-      const totalFrames = sequence.length * (FRAMES_PER_SPIN + FRAMES_PAUSE);
-      let addedFrames = 0;
-      function pushProgress() {
-        const pct = Math.round((addedFrames / totalFrames) * 100);
-        progressEl.textContent = `Recording GIF… ${pct}%`;
-      }
+    const sequence = [
+      { start: logoImg, end: emojis[0] },   // logo -> cat
+      { start: emojis[0], end: emojis[1] }, // cat -> heart
+      { start: emojis[1], end: logoImg }    // heart -> logo
+    ];
 
-      // add frame helper
-      function addFrameToGif(delay) {
-        // prefer passing the canvas element; gif.js will copy it
-        gif.addFrame(off, {copy:true, delay});
-        addedFrames++;
-        pushProgress();
-      }
+    // create worker blob URL (important on GitHub Pages/CDN)
+    const workerUrl = await makeWorkerBlobUrl('https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js');
+    if (!workerUrl) {
+      progressEl.textContent = 'Failed to load GIF worker (check console).';
+      startBtn.disabled = false;
+      return;
+    }
 
-      // run sequence
-      for (let s=0; s<sequence.length; s++) {
-        const pair = sequence[s];
-        for (let f=0; f<FRAMES_PER_SPIN; f++) {
-          const t = f / Math.max(1, FRAMES_PER_SPIN - 1);
-          const eased = easeInOut(t);
-          const angle = eased * 360.0;
-
-          // swap exactly at 180deg
-          const content = angle >= 180.0 ? pair.end : pair.start;
-
-          // draw and update small header preview
-          drawContent(content, angle);
-          try { logoPreview.src = off.toDataURL('image/png'); } catch(e) { /* maybe CORS - ignore */ }
-
-          // add to gif
-          addFrameToGif(FRAME_DELAY_MS);
-
-          // yield so UI can update (important on mobile)
-          await sleep(0);
-        }
-
-        // pause on result
-        for (let p=0; p<FRAMES_PAUSE; p++) {
-          drawContent(pair.end, 0);
-          try { logoPreview.src = off.toDataURL('image/png'); } catch(e){}
-          addFrameToGif(FRAME_DELAY_MS);
-          await sleep(0);
-        }
-      }
-
-      // finalize
-      progressEl.textContent = 'Finalizing GIF…';
-      gif.on('finished', function(blob) {
-        progressEl.textContent = 'Completed';
-        const url = URL.createObjectURL(blob);
-
-        // show in center
-        outImg.src = url;
-        outImg.width = 512;
-        outImg.height = 512;
-
-        // auto-download (user gesture available because Start button was tapped)
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'orcat_spin_512x512.gif';
-        document.body.appendChild(a);
-        // Attempt to click; most Android browsers will accept this; iOS might open in new tab
-        a.click();
-        a.remove();
-
-        // show manual download button as fallback
-        downloadBtn.style.display = 'inline-block';
-        downloadBtn.onclick = () => {
-          const bb = document.createElement('a');
-          bb.href = url;
-          bb.download = 'orcat_spin_512x512.gif';
-          document.body.appendChild(bb);
-          bb.click();
-          bb.remove();
-        };
-
-        // hide progress badge after a short pause
-        setTimeout(()=>{ progressEl.style.display = 'none'; }, 1400);
-        startBtn.disabled = false;
-      });
-
-      gif.render();
+    // create GIF with workerScript set to the blob URL
+    const gif = new GIF({
+      workers: 2,
+      quality: 1,
+      width: CANVAS_SIZE,
+      height: CANVAS_SIZE,
+      transparent: 'rgba(0,0,0,0)',
+      workerScript: workerUrl
     });
 
-  })();
-  </script>
+    // show progress during encoding so user isn't stuck on "Finalizing…"
+    gif.on('progress', function(p) {
+      const pct = Math.round(p * 100);
+      progressEl.textContent = `Finalizing GIF… ${pct}%`;
+    });
+
+    gif.on('error', function(err) {
+      console.error('GIF error:', err);
+      progressEl.textContent = 'GIF encoder error — see console';
+      startBtn.disabled = false;
+    });
+
+    gif.on('finished', function(blob) {
+      progressEl.textContent = 'Completed';
+      const url = URL.createObjectURL(blob);
+
+      outImg.src = url;
+      outImg.width = CANVAS_SIZE;
+      outImg.height = CANVAS_SIZE;
+
+      // attempt auto-download (should work on Android/Chrome); iOS may open in new tab
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'orcat_spin_512x512.gif';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      // manual fallback
+      downloadBtn.style.display = 'inline-block';
+      downloadBtn.onclick = () => {
+        const b = document.createElement('a'); b.href = url; b.download = 'orcat_spin_512x512.gif'; document.body.appendChild(b); b.click(); b.remove();
+      };
+
+      setTimeout(()=>{ progressEl.style.display = 'none'; }, 1400);
+      startBtn.disabled = false;
+    });
+
+    // add frames
+    const totalFrames = sequence.length * (FRAMES_PER_SPIN + FRAMES_PAUSE);
+    let addedFrames = 0;
+    function addFrame(delay) {
+      try {
+        gif.addFrame(off, { copy: true, delay });
+      } catch (e) {
+        try { gif.addFrame(ctx, { copy: true, delay }); } catch (e2) { console.error('addFrame failure', e, e2); }
+      }
+      addedFrames++;
+      const pct = Math.round((addedFrames / totalFrames) * 100);
+      progressEl.textContent = `Recording GIF… ${pct}%`;
+    }
+
+    for (let s=0; s<sequence.length; s++) {
+      const pair = sequence[s];
+      for (let f=0; f<FRAMES_PER_SPIN; f++) {
+        const t = f / Math.max(1, FRAMES_PER_SPIN - 1);
+        const eased = easeInOut(t);
+        const angle = eased * 360.0;
+
+        const content = angle >= 180.0 ? pair.end : pair.start;
+        drawContent(content, angle);
+
+        try { logoPreview.src = off.toDataURL('image/png'); } catch(e) { /* ignore taint if it occurs */ }
+
+        addFrame(FRAME_DELAY_MS);
+        await sleep(0);
+      }
+
+      // pause frames
+      for (let p=0; p<FRAMES_PAUSE; p++) {
+        drawContent(pair.end, 0);
+        try { logoPreview.src = off.toDataURL('image/png'); } catch(e) {}
+        addFrame(FRAME_DELAY_MS);
+        await sleep(0);
+      }
+    }
+
+    progressEl.textContent = 'Finalizing GIF… 0%';
+    try {
+      gif.render();
+    } catch (err) {
+      console.error('gif.render() threw:', err);
+      progressEl.textContent = 'GIF render failed — see console';
+      startBtn.disabled = false;
+    }
+  });
+})();
+</script>
 </body>
 </html>
