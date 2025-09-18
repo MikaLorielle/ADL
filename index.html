@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Spin to GIF</title>
+<style>
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: transparent;
+    margin: 0;
+  }
+  canvas {
+    background: transparent;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="512" height="512"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.js"></script>
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const size = 512;
+
+const logo = new Image();
+logo.src = "image.png"; // idek
+const emojiCat = "🐈";
+const emojiHeart = "🩷";
+
+// easing in/out
+function easeInOut(t) {
+  return t < 0.5
+    ? 2*t*t
+    : -1 + (4 - 2*t)*t;
+}
+
+let gif = new GIF({
+  workers: 2,
+  quality: 1,
+  transparent: 'rgba(0,0,0,0)',
+  workerScript: "https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js"
+});
+
+function drawRotated(content, angle, isEmoji=false) {
+  ctx.clearRect(0, 0, size, size);
+  ctx.save();
+  ctx.translate(size/2, size/2);
+  ctx.rotate(angle * Math.PI/180);
+  if (isEmoji) {
+    ctx.font = "200px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(content, 0, 0);
+  } else {
+    ctx.drawImage(content, -size/2, -size/2, size, size);
+  }
+  ctx.restore();
+}
+
+logo.onload = () => {
+  const fps = 30;
+  const spinDuration = 2;   // seconds per spin
+  const pauseDuration = 1;  // seconds pause after spin
+  const framesPerSpin = spinDuration * fps;
+  const framesPause = pauseDuration * fps;
+
+  const sequence = [
+    {start: logo, end: emojiCat},
+    {start: emojiCat, end: emojiHeart},
+    {start: emojiHeart, end: logo},
+  ];
+
+  sequence.forEach(pair => {
+    for (let f = 0; f < framesPerSpin; f++) {
+      const t = f / framesPerSpin;
+      const eased = easeInOut(t);
+      const angle = eased * 360;
+
+      // halfway swap
+      const halfway = f >= framesPerSpin/2;
+      const content = halfway ? pair.end : pair.start;
+      const isEmoji = (typeof content === "string");
+
+      drawRotated(content, angle, isEmoji);
+      gif.addFrame(ctx, {copy: true, delay: 1000/fps});
+    }
+
+    // pause
+    for (let p = 0; p < framesPause; p++) {
+      const content = pair.end;
+      const isEmoji = (typeof content === "string");
+      drawRotated(content, 0, isEmoji);
+      gif.addFrame(ctx, {copy: true, delay: 1000/fps});
+    }
+  });
+
+  gif.on('finished', function(blob) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "spin.gif";
+    a.click();
+  });
+
+  gif.render();
+};
+</script>
+</body>
+</html>
