@@ -11,8 +11,7 @@
   #output-wrap { display:flex; flex-direction:column; gap:10px; align-items:center; justify-content:center; }
   #output-gif { width:256px; height:256px; background:transparent; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,0.4); }
   #gif-progress { background: rgba(0,0,0,0.5); padding:8px 12px; border-radius:10px; font-size:14px; }
-  #startBtn, #downloadBtn { cursor:pointer; }
-  /* small header */
+  #startBtn, #downloadBtn { cursor:pointer; transition: transform 0.25s cubic-bezier(0.68,-0.55,0.27,1.55); }
   header { padding:12px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; background: rgba(255,255,255,0.04); backdrop-filter:blur(8px); border-radius:10px; margin:12px; }
   #logo-sequence { width:40px; height:40px; border-radius:8px; background:transparent; }
 </style>
@@ -41,10 +40,7 @@
     </div>
   </main>
 
-  <!-- hidden offscreen canvas used to draw/encode -->
   <canvas id="offscreen" width="512" height="512" style="display:none"></canvas>
-
-  <!-- gif.js (optimized) -->
   <script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.js"></script>
 
 <script>
@@ -60,36 +56,36 @@
   const FPS = 30;
   const SPIN_SEC = 2.0;
   const PAUSE_SEC = 1.0;
+  const PRESS_SEC = 0.4; // button press animation length
   const FRAMES_PER_SPIN = Math.round(FPS * SPIN_SEC);
   const FRAMES_PAUSE = Math.round(FPS * PAUSE_SEC);
+  const FRAMES_PRESS = Math.round(FPS * PRESS_SEC);
   const FRAME_DELAY_MS = Math.round(1000 / FPS);
-  const logoSrc = 'Img.PNG';   // ensure this file is in the same folder on GitHub Pages
+  const logoSrc = 'Img.PNG';
   const emojis = ['🐈', '🩷'];
 
-  // offscreen canvas context
+  // offscreen canvas
   const off = document.getElementById('offscreen');
   off.width = CANVAS_SIZE;
   off.height = CANVAS_SIZE;
   const ctx = off.getContext('2d');
 
-  // preload logo (DO NOT set crossOrigin for same-origin files on GitHub Pages)
+  // preload logo
   const logoImg = new Image();
   logoImg.src = logoSrc;
 
-  // prepare emoji font
   const emojiFontPx = Math.floor(CANVAS_SIZE * 0.72) + 'px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
 
-  function easeInOut(t) {
-    return t < 0.5 ? 2 * t * t : -1 + (4 - 2*t)*t;
+  function easeInOutCubic(t) {
+    return t < 0.5
+      ? 4 * t * t * t
+      : 1 - Math.pow(-2 * t + 2, 3) / 2;
   }
   function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
-  function drawContent(content, angleDeg) {
-    ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+  function renderContent(content, scale=1) {
     ctx.save();
-    ctx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
-    ctx.rotate(angleDeg * Math.PI/180);
-
+    ctx.scale(scale, scale);
     if (typeof content === 'string') {
       ctx.font = emojiFontPx;
       ctx.textAlign = 'center';
@@ -97,22 +93,30 @@
       ctx.fillStyle = 'black';
       ctx.fillText(content, 0, 0);
     } else {
-      try {
-        ctx.drawImage(content, -CANVAS_SIZE/2, -CANVAS_SIZE/2, CANVAS_SIZE, CANVAS_SIZE);
-      } catch (e) {
-        // drawing might fail if image not loaded — that's okay, fallback will render emoji frames still
-        console.warn('drawImage issue (maybe not loaded yet):', e);
-      }
+      ctx.drawImage(content, -CANVAS_SIZE/2, -CANVAS_SIZE/2, CANVAS_SIZE, CANVAS_SIZE);
     }
-
     ctx.restore();
   }
 
-  // helper to fetch worker script and return blob url
+  function drawCrossfade(startContent, endContent, progress, angle, scale=1) {
+    ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+    ctx.save();
+    ctx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
+    ctx.rotate(angle * Math.PI/180);
+    ctx.scale(scale, scale);
+
+    ctx.globalAlpha = 1 - progress;
+    renderContent(startContent);
+    ctx.globalAlpha = progress;
+    renderContent(endContent);
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
   async function makeWorkerBlobUrl(workerScriptUrl) {
     try {
       const res = await fetch(workerScriptUrl);
-      if (!res.ok) throw new Error('Worker fetch failed: ' + res.status);
       const text = await res.text();
       const blob = new Blob([text], { type: 'application/javascript' });
       return URL.createObjectURL(blob);
@@ -127,32 +131,29 @@
     downloadBtn.style.display = 'none';
     progressEl.style.display = 'inline-block';
     progressEl.textContent = 'Preparing…';
-    outImg.src = ''; // clear previous
+    outImg.src = '';
 
-    // wait briefly for logo to load (proceed even if it doesn't)
     if (!logoImg.complete) {
       await new Promise(res => {
         logoImg.onload = () => res();
-        logoImg.onerror = () => { console.warn('Logo load failed — continuing'); res(); };
-        setTimeout(res, 2500);
+        logoImg.onerror = () => res();
+        setTimeout(res, 2000);
       });
     }
 
     const sequence = [
-      { start: logoImg, end: emojis[0] },   // logo -> cat
-      { start: emojis[0], end: emojis[1] }, // cat -> heart
-      { start: emojis[1], end: logoImg }    // heart -> logo
+      { start: logoImg, end: emojis[0] },
+      { start: emojis[0], end: emojis[1] },
+      { start: emojis[1], end: logoImg }
     ];
 
-    // create worker blob URL (important on GitHub Pages/CDN)
     const workerUrl = await makeWorkerBlobUrl('https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js');
     if (!workerUrl) {
-      progressEl.textContent = 'Failed to load GIF worker (check console).';
+      progressEl.textContent = 'Failed to load GIF worker.';
       startBtn.disabled = false;
       return;
     }
 
-    // create GIF with workerScript set to the blob URL
     const gif = new GIF({
       workers: 2,
       quality: 1,
@@ -162,27 +163,18 @@
       workerScript: workerUrl
     });
 
-    // show progress during encoding so user isn't stuck on "Finalizing…"
-    gif.on('progress', function(p) {
+    gif.on('progress', p => {
       const pct = Math.round(p * 100);
       progressEl.textContent = `Finalizing GIF… ${pct}%`;
     });
 
-    gif.on('error', function(err) {
-      console.error('GIF error:', err);
-      progressEl.textContent = 'GIF encoder error — see console';
-      startBtn.disabled = false;
-    });
-
-    gif.on('finished', function(blob) {
+    gif.on('finished', blob => {
       progressEl.textContent = 'Completed';
       const url = URL.createObjectURL(blob);
-
       outImg.src = url;
       outImg.width = CANVAS_SIZE;
       outImg.height = CANVAS_SIZE;
 
-      // attempt auto-download (should work on Android/Chrome); iOS may open in new tab
       const a = document.createElement('a');
       a.href = url;
       a.download = 'orcat_spin_512x512.gif';
@@ -190,49 +182,63 @@
       a.click();
       a.remove();
 
-      // manual fallback
       downloadBtn.style.display = 'inline-block';
       downloadBtn.onclick = () => {
-        const b = document.createElement('a'); b.href = url; b.download = 'orcat_spin_512x512.gif'; document.body.appendChild(b); b.click(); b.remove();
+        const b = document.createElement('a');
+        b.href = url;
+        b.download = 'orcat_spin_512x512.gif';
+        document.body.appendChild(b);
+        b.click();
+        b.remove();
       };
 
       setTimeout(()=>{ progressEl.style.display = 'none'; }, 1400);
       startBtn.disabled = false;
     });
 
-    // add frames
-    const totalFrames = sequence.length * (FRAMES_PER_SPIN + FRAMES_PAUSE);
+    // progress accounting
+    const totalFrames = FRAMES_PRESS + sequence.length * (FRAMES_PER_SPIN + FRAMES_PAUSE);
     let addedFrames = 0;
     function addFrame(delay) {
-      try {
-        gif.addFrame(off, { copy: true, delay });
-      } catch (e) {
-        try { gif.addFrame(ctx, { copy: true, delay }); } catch (e2) { console.error('addFrame failure', e, e2); }
-      }
+      gif.addFrame(off, { copy: true, delay });
       addedFrames++;
       const pct = Math.round((addedFrames / totalFrames) * 100);
       progressEl.textContent = `Recording GIF… ${pct}%`;
     }
 
+    // --- PRESS IN/OUT ANIMATION ---
+    for (let f=0; f<FRAMES_PRESS; f++) {
+      const t = f / Math.max(1, FRAMES_PRESS - 1);
+      const eased = easeInOutCubic(t);
+      // scale: 1 → 0.9 → 1
+      const scale = 1 - 0.1 * Math.sin(eased * Math.PI);
+      ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
+      ctx.save();
+      ctx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
+      ctx.scale(scale, scale);
+      renderContent(logoImg);
+      ctx.restore();
+
+      try { logoPreview.src = off.toDataURL('image/png'); } catch(e) {}
+      addFrame(FRAME_DELAY_MS);
+      await sleep(0);
+    }
+
+    // --- SPIN ANIMATION ---
     for (let s=0; s<sequence.length; s++) {
       const pair = sequence[s];
       for (let f=0; f<FRAMES_PER_SPIN; f++) {
         const t = f / Math.max(1, FRAMES_PER_SPIN - 1);
-        const eased = easeInOut(t);
-        const angle = eased * 360.0;
+        const eased = easeInOutCubic(t);
+        const angle = eased * 360;
+        drawCrossfade(pair.start, pair.end, eased, angle);
 
-        const content = angle >= 180.0 ? pair.end : pair.start;
-        drawContent(content, angle);
-
-        try { logoPreview.src = off.toDataURL('image/png'); } catch(e) { /* ignore taint if it occurs */ }
-
+        try { logoPreview.src = off.toDataURL('image/png'); } catch(e) {}
         addFrame(FRAME_DELAY_MS);
         await sleep(0);
       }
-
-      // pause frames
       for (let p=0; p<FRAMES_PAUSE; p++) {
-        drawContent(pair.end, 0);
+        drawCrossfade(pair.end, pair.end, 1, 0);
         try { logoPreview.src = off.toDataURL('image/png'); } catch(e) {}
         addFrame(FRAME_DELAY_MS);
         await sleep(0);
@@ -240,11 +246,10 @@
     }
 
     progressEl.textContent = 'Finalizing GIF… 0%';
-    try {
-      gif.render();
-    } catch (err) {
+    try { gif.render(); }
+    catch (err) {
       console.error('gif.render() threw:', err);
-      progressEl.textContent = 'GIF render failed — see console';
+      progressEl.textContent = 'GIF render failed';
       startBtn.disabled = false;
     }
   });
