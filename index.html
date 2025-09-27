@@ -6,31 +6,92 @@
 <title>Spin Recorder — ORCatLang</title>
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <style>
-  body { background: linear-gradient(135deg,#2e026d,#d63384); min-height:100vh; color:white; }
-  .center-wrap { display:flex; align-items:center; justify-content:center; flex-direction:column; gap:16px; padding:28px; }
-  #output-wrap { display:flex; flex-direction:column; gap:10px; align-items:center; justify-content:center; }
-  #output-gif { width:256px; height:256px; background:transparent; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,0.4); }
-  #gif-progress { background: rgba(0,0,0,0.5); padding:8px 12px; border-radius:10px; font-size:14px; }
-  #startBtn, #downloadBtn { cursor:pointer; transition: transform 0.25s cubic-bezier(0.68,-0.55,0.27,1.55); }
-  header { padding:12px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; background: rgba(255,255,255,0.04); backdrop-filter:blur(8px); border-radius:10px; margin:12px; }
-  #logo-sequence { width:40px; height:40px; border-radius:8px; background:transparent; }
+  body {
+    background: linear-gradient(135deg,#2e026d,#d63384);
+    min-height:100vh;
+    color:white;
+    font-family: 'Poppins', sans-serif;
+    overflow-x:hidden;
+  }
+
+  /* glowing animated background particles */
+  body::before {
+    content:"";
+    position:fixed;
+    top:0; left:0;
+    width:100%; height:100%;
+    background: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px) repeat;
+    background-size: 50px 50px;
+    animation: bgMove 20s linear infinite;
+    z-index:-1;
+  }
+  @keyframes bgMove { 0%{background-position:0 0} 100%{background-position:50px 50px} }
+
+  .center-wrap { display:flex; align-items:center; justify-content:center; flex-direction:column; gap:24px; padding:28px; }
+  #output-wrap { display:flex; flex-direction:column; gap:12px; align-items:center; justify-content:center; }
+
+  #output-gif {
+    width:256px; height:256px;
+    border-radius:24px;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 0 20px rgba(255, 182, 193,0.5);
+    background: radial-gradient(circle at 30% 30%, #fbcfe8, #d63384);
+    transition: transform 0.4s ease;
+  }
+
+  #gif-progress {
+    background: rgba(0,0,0,0.5);
+    padding:10px 16px;
+    border-radius:14px;
+    font-size:15px;
+    color:#fff;
+    text-shadow: 0 0 5px rgba(0,0,0,0.5);
+  }
+
+  button {
+    cursor:pointer;
+    transition: transform 0.25s cubic-bezier(0.68,-0.55,0.27,1.55), background 0.3s;
+    font-weight:600;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  }
+  button:hover { transform: scale(1.08); }
+  #startBtn { background: linear-gradient(135deg,#f472b6,#d946ef); color:white; }
+  #downloadBtn { background: linear-gradient(135deg,#8b5cf6,#9333ea); color:white; }
+
+  header {
+    padding:14px 20px;
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    background: rgba(255,255,255,0.06); backdrop-filter:blur(10px);
+    border-radius:16px; margin:12px; box-shadow:0 8px 24px rgba(0,0,0,0.2);
+  }
+
+  #logo-sequence {
+    width:50px; height:50px; border-radius:12px; transition: transform 0.4s ease;
+  }
+
+  .description {
+    max-width:900px; width:100%; text-align:center;
+    background: rgba(255,255,255,0.05); padding:14px 18px; border-radius:16px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    color:#ffd6f0;
+  }
+
 </style>
 </head>
 <body>
   <header>
-    <div style="display:flex;align-items:center;gap:12px;">
+    <div style="display:flex;align-items:center;gap:14px;">
       <img id="logo-sequence" src="ORCC.png" alt="logo">
-      <h1 style="margin:0;font-size:18px;color:#fbcfe8;">ORCatLang — Spin Recorder</h1>
+      <h1 style="margin:0;font-size:20px;color:#fbcfe8;">ORCatLang — Spin Recorder</h1>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;">
-      <button id="startBtn" class="px-4 py-2 rounded-full bg-pink-500 hover:bg-pink-600">Start Recording</button>
-      <button id="downloadBtn" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700" style="display:none">Download GIF</button>
+    <div style="display:flex;gap:12px;align-items:center;">
+      <button id="startBtn" class="px-5 py-3 rounded-full">Start Recording</button>
+      <button id="downloadBtn" class="px-5 py-3 rounded-full" style="display:none">Download GIF</button>
     </div>
   </header>
 
   <main class="center-wrap">
-    <div style="max-width:900px;width:100%;text-align:center">
-      <p style="margin:0 0 12px 0; color:#ffd6f0">Records a single loop (logo → 🐈 → 🩷 → logo), 30 fps, 512×512, then shows & downloads the GIF.</p>
+    <div class="description">
+      Records a single loop with smooth aesthetic transitions, 30 fps, 512×512, then shows & downloads the GIF.
     </div>
 
     <div id="output-wrap" class="w-full max-w-md">
@@ -41,8 +102,8 @@
   </main>
 
   <canvas id="offscreen" width="512" height="512" style="display:none"></canvas>
-  <script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.js"></script>
 <script>
 (async function(){
   const startBtn = document.getElementById('startBtn');
@@ -51,207 +112,91 @@
   const outImg = document.getElementById('output-gif');
   const logoPreview = document.getElementById('logo-sequence');
 
-  // CONFIG
   const CANVAS_SIZE = 512;
   const FPS = 30;
   const SPIN_SEC = 2.0;
-  const PAUSE_SEC = 1.0;
-  const PRESS_SEC = 0.4; // button press animation length
+  const PAUSE_SEC = 0.8;
+  const PRESS_SEC = 0.4;
   const FRAMES_PER_SPIN = Math.round(FPS * SPIN_SEC);
   const FRAMES_PAUSE = Math.round(FPS * PAUSE_SEC);
   const FRAMES_PRESS = Math.round(FPS * PRESS_SEC);
   const FRAME_DELAY_MS = Math.round(1000 / FPS);
   const logoSrc = 'Img.PNG';
-  const emojis = ['🐈', '🩷'];
+  const emojis = ['😺','💖'];
 
-  // offscreen canvas
   const off = document.getElementById('offscreen');
-  off.width = CANVAS_SIZE;
-  off.height = CANVAS_SIZE;
+  off.width = CANVAS_SIZE; off.height = CANVAS_SIZE;
   const ctx = off.getContext('2d');
 
-  // preload logo
-  const logoImg = new Image();
-  logoImg.src = logoSrc;
-
+  const logoImg = new Image(); logoImg.src = logoSrc;
   const emojiFontPx = Math.floor(CANVAS_SIZE * 0.72) + 'px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
 
-  function easeInOutCubic(t) {
-    return t < 0.5
-      ? 4 * t * t * t
-      : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  }
-  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+  function easeInOutCubic(t) { return t<0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; }
+  function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
   function renderContent(content, scale=1) {
-    ctx.save();
-    ctx.scale(scale, scale);
-    if (typeof content === 'string') {
-      ctx.font = emojiFontPx;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'black';
-      ctx.fillText(content, 0, 0);
-    } else {
-      ctx.drawImage(content, -CANVAS_SIZE/2, -CANVAS_SIZE/2, CANVAS_SIZE, CANVAS_SIZE);
-    }
+    ctx.save(); ctx.scale(scale,scale);
+    if(typeof content==='string'){
+      ctx.font = emojiFontPx; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle='white'; ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=12;
+      ctx.fillText(content,0,0);
+    } else { ctx.drawImage(content,-CANVAS_SIZE/2,-CANVAS_SIZE/2,CANVAS_SIZE,CANVAS_SIZE); }
     ctx.restore();
   }
 
-  function drawCrossfade(startContent, endContent, progress, angle, scale=1) {
+  function drawCrossfade(startContent,endContent,progress,angle,scale=1){
     ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
-    ctx.save();
-    ctx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
-    ctx.rotate(angle * Math.PI/180);
-    ctx.scale(scale, scale);
-
-    ctx.globalAlpha = 1 - progress;
-    renderContent(startContent);
-    ctx.globalAlpha = progress;
-    renderContent(endContent);
-
-    ctx.restore();
-    ctx.globalAlpha = 1;
+    ctx.save(); ctx.translate(CANVAS_SIZE/2,CANVAS_SIZE/2); ctx.rotate(angle*Math.PI/180); ctx.scale(scale,scale);
+    ctx.globalAlpha = 1-progress; renderContent(startContent);
+    ctx.globalAlpha = progress; renderContent(endContent);
+    ctx.restore(); ctx.globalAlpha=1;
   }
 
-  async function makeWorkerBlobUrl(workerScriptUrl) {
-    try {
-      const res = await fetch(workerScriptUrl);
-      const text = await res.text();
-      const blob = new Blob([text], { type: 'application/javascript' });
-      return URL.createObjectURL(blob);
-    } catch (err) {
-      console.error('Failed to fetch worker script:', err);
-      return null;
-    }
+  async function makeWorkerBlobUrl(workerScriptUrl){
+    try{ const res = await fetch(workerScriptUrl); const text = await res.text(); return URL.createObjectURL(new Blob([text], {type:'application/javascript'})); }
+    catch(err){ console.error(err); return null; }
   }
 
-  startBtn.addEventListener('click', async () => {
-    startBtn.disabled = true;
-    downloadBtn.style.display = 'none';
-    progressEl.style.display = 'inline-block';
-    progressEl.textContent = 'Preparing…';
-    outImg.src = '';
+  startBtn.addEventListener('click', async()=>{
+    startBtn.disabled=true; downloadBtn.style.display='none'; progressEl.style.display='inline-block'; progressEl.textContent='Preparing…'; outImg.src='';
+    if(!logoImg.complete) await new Promise(r=>{ logoImg.onload=r; logoImg.onerror=r; setTimeout(r,2000); });
 
-    if (!logoImg.complete) {
-      await new Promise(res => {
-        logoImg.onload = () => res();
-        logoImg.onerror = () => res();
-        setTimeout(res, 2000);
-      });
-    }
-
-    const sequence = [
-      { start: logoImg, end: emojis[0] },
-      { start: emojis[0], end: emojis[1] },
-      { start: emojis[1], end: logoImg }
-    ];
-
+    const sequence = [ {start:logoImg,end:emojis[0]}, {start:emojis[0],end:emojis[1]}, {start:emojis[1],end:logoImg} ];
     const workerUrl = await makeWorkerBlobUrl('https://cdn.jsdelivr.net/npm/gif.js.optimized/dist/gif.worker.js');
-    if (!workerUrl) {
-      progressEl.textContent = 'Failed to load GIF worker.';
-      startBtn.disabled = false;
-      return;
-    }
+    if(!workerUrl){ progressEl.textContent='Failed to load GIF worker.'; startBtn.disabled=false; return; }
 
-    const gif = new GIF({
-      workers: 2,
-      quality: 1,
-      width: CANVAS_SIZE,
-      height: CANVAS_SIZE,
-      transparent: 'rgba(0,0,0,0)',
-      workerScript: workerUrl
-    });
-
-    gif.on('progress', p => {
-      const pct = Math.round(p * 100);
-      progressEl.textContent = `Finalizing GIF… ${pct}%`;
-    });
-
-    gif.on('finished', blob => {
-      progressEl.textContent = 'Completed';
+    const gif = new GIF({workers:2,quality:1,width:CANVAS_SIZE,height:CANVAS_SIZE,transparent:'rgba(0,0,0,0)',workerScript:workerUrl});
+    gif.on('progress',p=>progressEl.textContent=`Finalizing GIF… ${Math.round(p*100)}%`);
+    gif.on('finished',blob=>{
+      progressEl.textContent='Completed';
       const url = URL.createObjectURL(blob);
-      outImg.src = url;
-      outImg.width = CANVAS_SIZE;
-      outImg.height = CANVAS_SIZE;
-
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'orcat_spin_512x512.gif';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-
-      downloadBtn.style.display = 'inline-block';
-      downloadBtn.onclick = () => {
-        const b = document.createElement('a');
-        b.href = url;
-        b.download = 'orcat_spin_512x512.gif';
-        document.body.appendChild(b);
-        b.click();
-        b.remove();
-      };
-
-      setTimeout(()=>{ progressEl.style.display = 'none'; }, 1400);
-      startBtn.disabled = false;
+      outImg.src=url; outImg.width=CANVAS_SIZE; outImg.height=CANVAS_SIZE;
+      downloadBtn.style.display='inline-block';
+      downloadBtn.onclick=()=>{ const a=document.createElement('a'); a.href=url; a.download='orcat_spin_512x512.gif'; document.body.appendChild(a); a.click(); a.remove(); };
+      setTimeout(()=>progressEl.style.display='none',1400);
+      startBtn.disabled=false;
     });
 
-    // progress accounting
-    const totalFrames = FRAMES_PRESS + sequence.length * (FRAMES_PER_SPIN + FRAMES_PAUSE);
-    let addedFrames = 0;
-    function addFrame(delay) {
-      gif.addFrame(off, { copy: true, delay });
-      addedFrames++;
-      const pct = Math.round((addedFrames / totalFrames) * 100);
-      progressEl.textContent = `Recording GIF… ${pct}%`;
+    const totalFrames = FRAMES_PRESS + sequence.length*(FRAMES_PER_SPIN+FRAMES_PAUSE); let addedFrames=0;
+    function addFrame(delay){ gif.addFrame(off,{copy:true,delay}); addedFrames++; progressEl.textContent=`Recording GIF… ${Math.round((addedFrames/totalFrames)*100)}%`; }
+
+    for(let f=0;f<FRAMES_PRESS;f++){
+      const t=f/Math.max(1,FRAMES_PRESS-1), eased=easeInOutCubic(t);
+      const scale=1-0.12*Math.sin(eased*Math.PI); ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE); ctx.save(); ctx.translate(CANVAS_SIZE/2,CANVAS_SIZE/2); ctx.scale(scale,scale);
+      renderContent(logoImg); ctx.restore(); try{ logoPreview.src=off.toDataURL('image/png'); }catch(e){}
+      addFrame(FRAME_DELAY_MS); await sleep(0);
     }
 
-    // --- PRESS IN/OUT ANIMATION ---
-    for (let f=0; f<FRAMES_PRESS; f++) {
-      const t = f / Math.max(1, FRAMES_PRESS - 1);
-      const eased = easeInOutCubic(t);
-      // scale: 1 → 0.9 → 1
-      const scale = 1 - 0.1 * Math.sin(eased * Math.PI);
-      ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
-      ctx.save();
-      ctx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
-      ctx.scale(scale, scale);
-      renderContent(logoImg);
-      ctx.restore();
-
-      try { logoPreview.src = off.toDataURL('image/png'); } catch(e) {}
-      addFrame(FRAME_DELAY_MS);
-      await sleep(0);
-    }
-
-    // --- SPIN ANIMATION ---
-    for (let s=0; s<sequence.length; s++) {
-      const pair = sequence[s];
-      for (let f=0; f<FRAMES_PER_SPIN; f++) {
-        const t = f / Math.max(1, FRAMES_PER_SPIN - 1);
-        const eased = easeInOutCubic(t);
-        const angle = eased * 360;
-        drawCrossfade(pair.start, pair.end, eased, angle);
-
-        try { logoPreview.src = off.toDataURL('image/png'); } catch(e) {}
-        addFrame(FRAME_DELAY_MS);
-        await sleep(0);
+    for(let s=0;s<sequence.length;s++){
+      const pair=sequence[s];
+      for(let f=0;f<FRAMES_PER_SPIN;f++){
+        const t=f/Math.max(1,FRAMES_PER_SPIN-1), eased=easeInOutCubic(t), angle=eased*360, scale=1+0.05*Math.sin(eased*Math.PI*2);
+        drawCrossfade(pair.start,pair.end,eased,angle,scale); try{ logoPreview.src=off.toDataURL('image/png'); }catch(e){} addFrame(FRAME_DELAY_MS); await sleep(0);
       }
-      for (let p=0; p<FRAMES_PAUSE; p++) {
-        drawCrossfade(pair.end, pair.end, 1, 0);
-        try { logoPreview.src = off.toDataURL('image/png'); } catch(e) {}
-        addFrame(FRAME_DELAY_MS);
-        await sleep(0);
-      }
+      for(let p=0;p<FRAMES_PAUSE;p++){ drawCrossfade(pair.end,pair.end,1,0); try{ logoPreview.src=off.toDataURL('image/png'); }catch(e){} addFrame(FRAME_DELAY_MS); await sleep(0);}
     }
 
-    progressEl.textContent = 'Finalizing GIF… 0%';
-    try { gif.render(); }
-    catch (err) {
-      console.error('gif.render() threw:', err);
-      progressEl.textContent = 'GIF render failed';
-      startBtn.disabled = false;
-    }
+    progressEl.textContent='Finalizing GIF… 0%'; try{ gif.render(); } catch(err){ console.error(err); progressEl.textContent='GIF render failed'; startBtn.disabled=false; }
   });
 })();
 </script>
