@@ -143,6 +143,15 @@
     } else { ctx.drawImage(content,-CANVAS_SIZE/2,-CANVAS_SIZE/2,CANVAS_SIZE,CANVAS_SIZE); }
     ctx.restore();
   }
+function drawSpinFrame(content, angle, scale=1){
+    ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE); // fully transparent
+    ctx.save();
+    ctx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
+    ctx.rotate(angle * Math.PI / 180);
+    ctx.scale(scale, scale);
+    renderContent(content);
+    ctx.restore();
+}
 
 function drawCrossfade(startContent, endContent, progress, angle, scale=1){
     // Clear fully transparent
@@ -231,7 +240,7 @@ function renderContentOnCtx(c, content, scale=1){
       const pair=sequence[s];
       for(let f=0;f<FRAMES_PER_SPIN;f++){
         const t=f/Math.max(1,FRAMES_PER_SPIN-1), eased=easeInOutCubic(t), angle=eased*360, scale=1+0.05*Math.sin(eased*Math.PI*2);
-        drawCrossfade(pair.start,pair.end,eased,angle,scale); try{ logoPreview.src=off.toDataURL('image/png'); }catch(e){} addFrame(FRAME_DELAY_MS); await sleep(0);
+        drawSpinFrame(pair.end, angle, scale); try{ logoPreview.src=off.toDataURL('image/png'); }catch(e){} addFrame(FRAME_DELAY_MS); await sleep(0);
       }
       for(let p=0;p<FRAMES_PAUSE;p++){ drawCrossfade(pair.end,pair.end,1,0); try{ logoPreview.src=off.toDataURL('image/png'); }catch(e){} addFrame(FRAME_DELAY_MS); await sleep(0);}
     }
