@@ -144,13 +144,53 @@
     ctx.restore();
   }
 
-  function drawCrossfade(startContent,endContent,progress,angle,scale=1){
+function drawCrossfade(startContent, endContent, progress, angle, scale=1){
+    // Clear fully transparent
     ctx.clearRect(0,0,CANVAS_SIZE,CANVAS_SIZE);
-    ctx.save(); ctx.translate(CANVAS_SIZE/2,CANVAS_SIZE/2); ctx.rotate(angle*Math.PI/180); ctx.scale(scale,scale);
-    ctx.globalAlpha = 1-progress; renderContent(startContent);
-    ctx.globalAlpha = progress; renderContent(endContent);
-    ctx.restore(); ctx.globalAlpha=1;
-  }
+
+    // Draw the blended frame manually
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = CANVAS_SIZE; tempCanvas.height = CANVAS_SIZE;
+    const tempCtx = tempCanvas.getContext('2d');
+
+    // Draw start content
+    tempCtx.save();
+    tempCtx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
+    tempCtx.rotate(angle*Math.PI/180);
+    tempCtx.scale(scale, scale);
+    renderContentOnCtx(tempCtx, startContent);
+    tempCtx.restore();
+
+    // Draw end content
+    tempCtx.save();
+    tempCtx.translate(CANVAS_SIZE/2, CANVAS_SIZE/2);
+    tempCtx.rotate(angle*Math.PI/180);
+    tempCtx.scale(scale, scale);
+    tempCtx.globalAlpha = progress;
+    renderContentOnCtx(tempCtx, endContent);
+    tempCtx.restore();
+
+    // Copy to main canvas
+    ctx.drawImage(tempCanvas, 0, 0);
+}
+
+// Helper function to draw content onto any context
+function renderContentOnCtx(c, content, scale=1){
+    c.save(); c.scale(scale, scale);
+    if(typeof content==='string'){
+        c.font = emojiFontPx;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillStyle = 'white';
+        c.shadowColor='rgba(0,0,0,0.5)';
+        c.shadowBlur=12;
+        c.fillText(content, 0, 0);
+    } else {
+        c.drawImage(content, -CANVAS_SIZE/2, -CANVAS_SIZE/2, CANVAS_SIZE, CANVAS_SIZE);
+    }
+    c.restore();
+}
+
 
   async function makeWorkerBlobUrl(workerScriptUrl){
     try{ const res = await fetch(workerScriptUrl); const text = await res.text(); return URL.createObjectURL(new Blob([text], {type:'application/javascript'})); }
